@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏠 Home Stream</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    background: #0f0f14; color: #eee; min-height: 100vh;
+  }
+  header {
+    padding: 20px 32px; border-bottom: 1px solid #222;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  h1 { font-size: 22px; flex: 1; }
+  button {
+    background: #2a2a3a; color: #eee; border: 1px solid #333;
+    padding: 10px 18px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; transition: background .15s;
+  }
+  button:hover { background: #35354a; }
+  button:disabled { opacity: .5; cursor: default; }
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px; padding: 32px;
+  }
+  .card {
+    background: #1a1a22; border-radius: 12px; overflow: hidden;
+    cursor: pointer; transition: transform .15s, background .15s;
+    border: none; color: inherit; text-align: left; padding: 0;
+  }
+  .card:hover { transform: translateY(-4px); background: #23232e; }
+  .thumb {
+    height: 130px; display: flex; align-items: center; justify-content: center;
+    font-size: 48px; background: linear-gradient(135deg, #2a2a3a, #1a1a22);
+  }
+  .title {
+    padding: 12px; font-size: 14px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .meta { padding: 0 12px 12px; font-size: 12px; color: #888; }
+  .empty { padding: 32px; color: #888; }
+  #player {
+    display: none; position: fixed; inset: 0;
+    background: #000; z-index: 100;
+    flex-direction: column; padding: 20px;
+  }
+  #player.active { display: flex; }
+  #player video {
+    width: 100%; flex: 1; border-radius: 12px; background: #000;
+    min-height: 0;
+  }
+  #player .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding-bottom: 16px;
+  }
+  #player h2 { font-size: 16px; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Модалка загрузки */
+  #uploadModal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.7); z-index: 200;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  #uploadModal.active { display: flex; }
+  .modal {
+    background: #1a1a22; border-radius: 16px;
+    padding: 28px; max-width: 500px; width: 100%;
+    border: 1px solid #333;
+  }
+  .modal h2 { font-size: 18px; margin-bottom: 20px; }
+  .dropzone {
+    border: 2px dashed #444; border-radius: 12px;
+    padding: 40px 20px; text-align: center;
+    cursor: pointer; transition: all .15s; color: #888;
+  }
+  .dropzone:hover, .dropzone.drag {
+    border-color: #7aa2ff; color: #7aa2ff; background: #1e1e2a;
+  }
+  .dropzone .big { font-size: 48px; margin-bottom: 12px; }
+  .uploads { margin-top: 20px; }
+  .upload-row {
+    background: #23232e; border-radius: 8px;
+    padding: 12px; margin-bottom: 8px; font-size: 13px;
+  }
+  .upload-row .name {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    margin-bottom: 6px;
+  }
+  .upload-row .bar {
+    height: 6px; background: #333; border-radius: 3px; overflow: hidden;
+  }
+  .upload-row .bar > div {
+    height: 100%; background: #7aa2ff; width: 0%;
+    transition: width .15s;
+  }
+  .upload-row .status { font-size: 11px; color: #888; margin-top: 4px; }
+  .upload-row.done .bar > div { background: #4caf50; }
+  .upload-row.error .bar > div { background: #f44336; }
+  .modal-actions { margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏠 Home Stream</h1>
+  <button id="uploadBtn">⬆️ Загрузить видео</button>
+  <button id="refreshBtn">🔄 Обновить</button>
+</header>
+
+<main id="grid">
+  <p class="empty">Загружаю список…</p>
+</main>
+
+<div id="player">
+  <div class="topbar">
+    <button id="closeBtn">← Назад</button>
+    <h2 id="playerTitle"></h2>
+  </div>
+  <video id="video" controls playsinline></video>
+</div>
+
+<div id="uploadModal">
+  <div class="modal">
+    <h2>⬆️ Загрузить видео</h2>
+    <div class="dropzone" id="dropzone">
+      <div class="big">📁</div>
+      <div>Перетащи файлы сюда<br>или кликни, чтобы выбрать</div>
+    </div>
+    <input type="file" id="fileInput" accept="video/*" multiple hidden>
+    <div class="uploads" id="uploads"></div>
+    <div class="modal-actions">
+      <button id="closeUpload">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const grid        = document.getElementById('grid');
+  const player      = document.getElementById('player');
+  const video       = document.getElementById('video');
+  const playerTitle = document.getElementById('playerTitle');
+  const uploadBtn   = document.getElementById('uploadBtn');
+  const refreshBtn  = document.getElementById('refreshBtn');
+  const uploadModal = document.getElementById('uploadModal');
+  const dropzone    = document.getElementById('dropzone');
+  const fileInput   = document.getElementById('fileInput');
+  const uploadsEl   = document.getElementById('uploads');
+  const closeUpload = document.getElementById('closeUpload');
+
+  const VIDEO_EXT = /\.(mp4|webm|mkv|mov|m4v|ogv)$/i;
+
+  // ---------- Список видео ----------
+  function formatSize(bytes) {
+    if (!bytes) return '';
+    const units = ['Б', 'КБ', 'МБ', 'ГБ'];
+    let i = 0;
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+    return bytes.toFixed(bytes < 10 ? 1 : 0) + ' ' + units[i];
+  }
+
+  function loadVideos() {
+    grid.innerHTML = '<p class="empty">Загружаю…</p>';
+    fetch('/api/videos')
+      .then(r => r.json())
+      .then(videos => {
+        if (!videos.length) {
+          grid.innerHTML = '<p class="empty">Пока пусто. Загрузи первое видео!</p>';
+          return;
+        }
+        grid.innerHTML = '';
+        videos.forEach(v => {
+          const card = document.createElement('button');
+          card.className = 'card';
+          card.innerHTML = `
+            <div class="thumb">🎞️</div>
+            <div class="title">${escapeHtml(v.title)}</div>
+            <div class="meta">${formatSize(v.size)}</div>
+          `;
+          card.addEventListener('click', () => openPlayer(v.url, v.title));
+          grid.appendChild(card);
+        });
+      })
+      .catch(() => {
+        grid.innerHTML = '<p class="empty">Не могу получить список. Сервер запущен?</p>';
+      });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
+  // ---------- Плеер ----------
+  function openPlayer(url, title) {
+    video.src = url;
+    playerTitle.textContent = title;
+    player.classList.add('active');
+
+    video.addEventListener('loadedmetadata', function once() {
+      const saved = localStorage.getItem('pos_' + title);
+      if (saved) video.currentTime = parseFloat(saved);
+      video.removeEventListener('loadedmetadata', once);
+    });
+
+    video.play().catch(() => {});
+  }
+
+  function closePlayer() {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    player.classList.remove('active');
+  }
+
+  document.getElementById('closeBtn').addEventListener('click', closePlayer);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (player.classList.contains('active')) closePlayer();
+      else if (uploadModal.classList.contains('active')) closeUploadModal();
+    }
+  });
+
+  video.addEventListener('timeupdate', () => {
+    if (video.duration) {
+      localStorage.setItem('pos_' + playerTitle.textContent, video.currentTime);
+    }
+  });
+
+  // ---------- Загрузка ----------
+  uploadBtn.addEventListener('click', () => {
+    uploadModal.classList.add('active');
+  });
+
+  closeUpload.addEventListener('click', closeUploadModal);
+
+  function closeUploadModal() {
+    uploadModal.classList.remove('active');
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  dropzone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropzone.classList.add('drag');
+  });
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('drag');
+  });
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    handleFiles([...e.dataTransfer.files]);
+  });
+
+  fileInput.addEventListener('change', e => {
+    handleFiles([...e.target.files]);
+    fileInput.value = '';
+  });
+
+  async function handleFiles(files) {
+    const videos = files.filter(f => VIDEO_EXT.test(f.name));
+    if (!videos.length) return;
+
+    for (const file of videos) {
+      await uploadFile(file);
+    }
+    loadVideos();
+  }
+
+  function uploadFile(file) {
+    return new Promise(resolve => {
+      const row = document.createElement('div');
+      row.className = 'upload-row';
+      row.innerHTML = `
+        <div class="name">${escapeHtml(file.name)}</div>
+        <div class="bar"><div></div></div>
+        <div class="status">0%</div>
+      `;
+      uploadsEl.prepend(row);
+
+      const barFill = row.querySelector('.bar > div');
+      const status  = row.querySelector('.status');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/upload');
+
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable) {
+          const pct = Math.round(e.loaded / e.total * 100);
+          barFill.style.width = pct + '%';
+          status.textContent = pct + '% — ' +
+            formatSize(e.loaded) + ' из ' + formatSize(e.total);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+          row.classList.add('done');
+          barFill.style.width = '100%';
+          status.textContent = '✅ Готово';
+        } else {
+          row.classList.add('error');
+          status.textContent = '❌ Ошибка ' + xhr.status;
+        }
+        resolve();
+      });
+
+      xhr.addEventListener('error', () => {
+        row.classList.add('error');
+        status.textContent = '❌ Ошибка сети';
+        resolve();
+      });
+
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      xhr.send(fd);
+    });
+  }
+
+  // ---------- Старт ----------
+  refreshBtn.addEventListener('click', loadVideos);
+  loadVideos();
+</script>
+</body>
+</html>
