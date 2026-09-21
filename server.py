@@ -1,18 +1,16 @@
-#!/usr/bin/env python3
+import os
+
+PORT = int(os.environ.get('PORT', 8020))
+VIDEOS_DIR = os.path.expanduser("~/Видео блять")
+VIDEO_EXT = ('.mp4', '.webm', '.mkv', '.mov', '.m4v', '.ogv')
+MAX_UPLOAD = 20 * 1024 * 1024 * 1024
 import http.server
 import socketserver
 import os
 import json
 import urllib.parse
 import socket
-import shutil
 import re
-import time
-
-PORT = 8020
-VIDEOS_DIR = os.path.expanduser("~/Видео блять")
-VIDEO_EXT = ('.mp4', '.webm', '.mkv', '.mov', '.m4v', '.ogv')
-MAX_UPLOAD = 20 * 1024 * 1024 * 1024  # 20 ГБ
 
 
 def safe_filename(name):
