@@ -328,5 +328,51 @@
   refreshBtn.addEventListener('click', loadVideos);
   loadVideos();
 </script>
-</body>
+<!-- 🔥 Keep-alive для Render: скрытое видео, которое перезагружается по кругу -->
+<video id="keepAlive" muted autoplay loop playsinline
+       style="position:fixed; right:0; bottom:0; width:1px; height:1px;
+              opacity:0.01; pointer-events:none; z-index:-1;">
+</video>
+
+<script>
+(function() {
+  const vid = document.getElementById('keepAlive');
+  const SRC = '/api/videos';  // маленький JSON-ответ — быстро, мало трафика
+
+  // Каждые 5 минут пингуем /api/videos с рандомным ?t=
+  // Render видит активность → не засыпает
+  function ping() {
+    fetch(SRC + '?t=' + Date.now(), { cache: 'no-store' })
+      .catch(() => {});
+  }
+
+  // Пингануть сразу при загрузке
+  ping();
+
+  // И потом каждые 5 минут (в фоне вкладки таймеры тормозят, но раз в 5 мин норм)
+  setInterval(ping, 5 * 60 * 1000);
+
+  // Плюс видео-цикл: каждые несколько секунд "новый" запрос
+  // через src с ?t=, чтобы был ещё один источник трафика
+  function cycleVideo() {
+    // Используем первый попавшийся mp4 из /api/videos
+    fetch('/api/videos', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(list => {
+        if (!list.length) {
+          setTimeout(cycleVideo, 10000);
+          return;
+        }
+        const url = list[0].url + '?t=' + Date.now();
+        vid.src = url;
+        vid.play().catch(() => {});
+      })
+      .catch(() => {});
+  }
+
+  // Видео тоже перезагружаем раз в минуту
+  setInterval(cycleVideo, 60 * 1000);
+  cycleVideo();
+})();
+</script></body>
 </html>
