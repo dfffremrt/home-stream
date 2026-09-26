@@ -22,6 +22,7 @@
   }
   button:hover { background: #35354a; }
   button:disabled { opacity: .5; cursor: default; }
+
   #grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -34,8 +35,23 @@
   }
   .card:hover { transform: translateY(-4px); background: #23232e; }
   .thumb {
-    height: 130px; display: flex; align-items: center; justify-content: center;
-    font-size: 48px; background: linear-gradient(135deg, #2a2a3a, #1a1a22);
+    height: 130px;
+    background: linear-gradient(135deg, #2a2a3a, #1a1a22);
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    position: relative;
+    overflow: hidden;
+    transition: background-image .3s;
+  }
+  .thumb::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,.5), transparent 50%);
+    pointer-events: none;
   }
   .title {
     padding: 12px; font-size: 14px;
@@ -43,6 +59,8 @@
   }
   .meta { padding: 0 12px 12px; font-size: 12px; color: #888; }
   .empty { padding: 32px; color: #888; }
+
+  /* Плеер */
   #player {
     display: none; position: fixed; inset: 0;
     background: #000; z-index: 100;
@@ -82,7 +100,7 @@
     border-color: #7aa2ff; color: #7aa2ff; background: #1e1e2a;
   }
   .dropzone .big { font-size: 48px; margin-bottom: 12px; }
-  .uploads { margin-top: 20px; }
+  .uploads { margin-top: 20px; max-height: 300px; overflow-y: auto; }
   .upload-row {
     background: #23232e; border-radius: 8px;
     padding: 12px; margin-bottom: 8px; font-size: 13px;
@@ -102,6 +120,13 @@
   .upload-row.done .bar > div { background: #4caf50; }
   .upload-row.error .bar > div { background: #f44336; }
   .modal-actions { margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* Скрытое видео для keep-alive */
+  #keepAlive {
+    position: fixed; right: 0; bottom: 0;
+    width: 1px; height: 1px;
+    opacity: 0.01; pointer-events: none; z-index: -1;
+  }
 </style>
 </head>
 <body>
@@ -139,7 +164,11 @@
   </div>
 </div>
 
+<!-- Скрытое видео для поддержания сервера в бодром состоянии -->
+<video id="keepAlive" muted autoplay loop playsinline></video>
+
 <script>
+  // ===== ЭЛЕМЕНТЫ =====
   const grid        = document.getElementById('grid');
   const player      = document.getElementById('player');
   const video       = document.getElementById('video');
@@ -154,7 +183,13 @@
 
   const VIDEO_EXT = /\.(mp4|webm|mkv|mov|m4v|ogv)$/i;
 
-  // ---------- Список видео ----------
+  // ===== УТИЛИТЫ =====
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+
   function formatSize(bytes) {
     if (!bytes) return '';
     const units = ['Б', 'КБ', 'МБ', 'ГБ'];
@@ -163,9 +198,105 @@
     return bytes.toFixed(bytes < 10 ? 1 : 0) + ' ' + units[i];
   }
 
+  // ===== ГЕНЕРАЦИЯ ОБЛОЖЕК ИЗ ПЕРВОГО КАДРА =====
+  function hashCode(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h) + str.charCodeAt(i);
+      h = h & h;
+    }
+    return Math.abs(h);
+  }
+
+  function getThumbCacheKey(videoUrl) {
+    return 'thumb_' + hashCode(videoUrl);
+  }
+
+  function generateThumbnail(videoUrl) {
+    return new Promise((resolve) => {
+      const vid = document.createElement('video');
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.preload = 'metadata';
+      vid.src = videoUrl;
+
+      let resolved = false;
+      const finish = (dataUrl) => {
+        if (resolved) return;
+        resolved = true;
+        vid.src = '';
+        try { vid.load(); } catch (e) {}
+        resolve(dataUrl);
+      };
+
+      const timeout = setTimeout(() => finish(null), 15000);
+
+      vid.addEventListener('loadedmetadata', () => {
+        const seekTime = Math.min(3, (vid.duration || 0) * 0.25);
+        vid.currentTime = seekTime;
+      });
+
+      vid.addEventListener('seeked', () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 320;
+          canvas.height = 180;
+          const ctx = canvas.getContext('2d');
+
+          const vw = vid.videoWidth;
+          const vh = vid.videoHeight;
+          const targetRatio = 320 / 180;
+          const videoRatio = vw / vh;
+
+          let sx = 0, sy = 0, sw = vw, sh = vh;
+          if (videoRatio > targetRatio) {
+            sw = vh * targetRatio;
+            sx = (vw - sw) / 2;
+          } else {
+            sh = vw / targetRatio;
+            sy = (vh - sh) / 2;
+          }
+
+          ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, 320, 180);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          clearTimeout(timeout);
+          finish(dataUrl);
+        } catch (e) {
+          clearTimeout(timeout);
+          finish(null);
+        }
+      });
+
+      vid.addEventListener('error', () => {
+        clearTimeout(timeout);
+        finish(null);
+      });
+    });
+  }
+
+  async function getThumbnail(videoUrl) {
+    const key = getThumbCacheKey(videoUrl);
+
+    const cached = localStorage.getItem(key);
+    if (cached) return cached === 'null' ? null : cached;
+
+    const dataUrl = await generateThumbnail(videoUrl);
+
+    try {
+      localStorage.setItem(key, dataUrl || 'null');
+    } catch (e) {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('thumb_'));
+      keys.slice(0, Math.floor(keys.length / 2)).forEach(k => localStorage.removeItem(k));
+      try { localStorage.setItem(key, dataUrl || 'null'); } catch (e2) {}
+    }
+
+    return dataUrl;
+  }
+
+  // ===== СПИСОК ВИДЕО =====
   function loadVideos() {
     grid.innerHTML = '<p class="empty">Загружаю…</p>';
-    fetch('/api/videos')
+    fetch('/api/videos', { cache: 'no-store' })
       .then(r => r.json())
       .then(videos => {
         if (!videos.length) {
@@ -173,6 +304,7 @@
           return;
         }
         grid.innerHTML = '';
+
         videos.forEach(v => {
           const card = document.createElement('button');
           card.className = 'card';
@@ -183,6 +315,14 @@
           `;
           card.addEventListener('click', () => openPlayer(v.url, v.title));
           grid.appendChild(card);
+
+          const thumbEl = card.querySelector('.thumb');
+          getThumbnail(v.url).then(dataUrl => {
+            if (dataUrl && thumbEl) {
+              thumbEl.style.backgroundImage = 'url(' + dataUrl + ')';
+              thumbEl.textContent = '';
+            }
+          });
         });
       })
       .catch(() => {
@@ -190,13 +330,7 @@
       });
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[c]));
-  }
-
-  // ---------- Плеер ----------
+  // ===== ПЛЕЕР =====
   function openPlayer(url, title) {
     video.src = url;
     playerTitle.textContent = title;
@@ -233,11 +367,8 @@
     }
   });
 
-  // ---------- Загрузка ----------
-  uploadBtn.addEventListener('click', () => {
-    uploadModal.classList.add('active');
-  });
-
+  // ===== ЗАГРУЗКА =====
+  uploadBtn.addEventListener('click', () => uploadModal.classList.add('active'));
   closeUpload.addEventListener('click', closeUploadModal);
 
   function closeUploadModal() {
@@ -265,12 +396,13 @@
   });
 
   async function handleFiles(files) {
-    const videos = files.filter(f => VIDEO_EXT.test(f.name));
-    if (!videos.length) return;
+    const vids = files.filter(f => VIDEO_EXT.test(f.name));
+    if (!vids.length) return;
 
-    for (const file of videos) {
+    for (const file of vids) {
       await uploadFile(file);
     }
+    // Чистим кэш обложек для новых файлов
     loadVideos();
   }
 
@@ -324,55 +456,41 @@
     });
   }
 
-  // ---------- Старт ----------
+  // ===== KEEP-ALIVE для Render (чтобы сервер не засыпал) =====
+  (function keepAlive() {
+    // Пинг /api/videos каждые 5 минут
+    function ping() {
+      fetch('/api/videos?t=' + Date.now(), { cache: 'no-store' }).catch(() => {});
+    }
+    ping();
+    setInterval(ping, 5 * 60 * 1000);
+
+    // Крутим скрытое видео из первого файла
+    const vid = document.getElementById('keepAlive');
+
+    function cycle() {
+      fetch('/api/videos', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(list => {
+          if (!list.length) {
+            setTimeout(cycle, 10000);
+            return;
+          }
+          vid.src = list[0].url + '?t=' + Date.now();
+          vid.play().catch(() => {});
+        })
+        .catch(() => {});
+    }
+
+    vid.addEventListener('ended', cycle);
+    vid.addEventListener('error', () => setTimeout(cycle, 5000));
+    setInterval(cycle, 60 * 1000);
+    cycle();
+  })();
+
+  // ===== СТАРТ =====
   refreshBtn.addEventListener('click', loadVideos);
   loadVideos();
 </script>
-<!-- 🔥 Keep-alive для Render: скрытое видео, которое перезагружается по кругу -->
-<video id="keepAlive" muted autoplay loop playsinline
-       style="position:fixed; right:0; bottom:0; width:1px; height:1px;
-              opacity:0.01; pointer-events:none; z-index:-1;">
-</video>
-
-<script>
-(function() {
-  const vid = document.getElementById('keepAlive');
-  const SRC = '/api/videos';  // маленький JSON-ответ — быстро, мало трафика
-
-  // Каждые 5 минут пингуем /api/videos с рандомным ?t=
-  // Render видит активность → не засыпает
-  function ping() {
-    fetch(SRC + '?t=' + Date.now(), { cache: 'no-store' })
-      .catch(() => {});
-  }
-
-  // Пингануть сразу при загрузке
-  ping();
-
-  // И потом каждые 5 минут (в фоне вкладки таймеры тормозят, но раз в 5 мин норм)
-  setInterval(ping, 5 * 60 * 1000);
-
-  // Плюс видео-цикл: каждые несколько секунд "новый" запрос
-  // через src с ?t=, чтобы был ещё один источник трафика
-  function cycleVideo() {
-    // Используем первый попавшийся mp4 из /api/videos
-    fetch('/api/videos', { cache: 'no-store' })
-      .then(r => r.json())
-      .then(list => {
-        if (!list.length) {
-          setTimeout(cycleVideo, 10000);
-          return;
-        }
-        const url = list[0].url + '?t=' + Date.now();
-        vid.src = url;
-        vid.play().catch(() => {});
-      })
-      .catch(() => {});
-  }
-
-  // Видео тоже перезагружаем раз в минуту
-  setInterval(cycleVideo, 60 * 1000);
-  cycleVideo();
-})();
-</script></body>
+</body>
 </html>
