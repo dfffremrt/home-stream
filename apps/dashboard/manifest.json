@@ -1,0 +1,19 @@
+{
+  "name": "Моя панель",
+  "short_name": "Панель",
+  "description": "Домашняя панель: время, погода, курсы, ссылки, заметки",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

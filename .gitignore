@@ -1,8 +1,22 @@
-venv/
+# Python
 __pycache__/
 *.pyc
-*.mp4
-*.mov
-*.mkv
-*.webm
+.venv/
+venv/
 
+# macOS
+.DS_Store
+
+# Логи
+*.log
+
+# Бэкапы сервера
+server.py.backup
+server.py.backup_v3
+server.py.hmp5.backup
+server.py.save
+
+# Данные, которые не нужны в git
+data/cache.json
+data/chat.json
+data/notes.json

@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HMP5 Converter — MP4 → HMP5</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #0a0a14;
+    color: #fff;
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100%;
+  }
+
+  .wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  header h1 {
+    font-size: clamp(28px, 5vw, 48px);
+    margin: 0 0 8px;
+    letter-spacing: 6px;
+    color: #00e0ff;
+    text-shadow: 0 0 30px rgba(0,224,255,0.5);
+  }
+  header p {
+    color: #666;
+    margin: 0;
+    letter-spacing: 2px;
+    font-size: 14px;
+  }
+
+  /* Drop-зона */
+  #drop {
+    border: 2px dashed #333;
+    border-radius: 16px;
+    padding: 60px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255,255,255,0.02);
+  }
+  #drop:hover, #drop.dragover {
+    border-color: #00e0ff;
+    background: rgba(0,224,255,0.05);
+    transform: scale(1.01);
+  }
+  #drop.has-file {
+    border-color: #00e0ff;
+    border-style: solid;
+    padding: 20px;
+  }
+  #drop .icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  #drop h2 {
+    margin: 0 0 8px;
+    font-size: 20px;
+  }
+  #drop p {
+    color: #666;
+    margin: 0;
+    font-size: 14px;
+  }
+
+  /* Превью */
+  #preview {
+    display: none;
+    width: 100%;
+    border-radius: 8px;
+    background: #000;
+  }
+  #drop.has-file #preview {
+    display: block;
+  }
+  #drop.has-file .placeholder {
+    display: none;
+  }
+
+  /* Форма */
+  #form {
+    display: none;
+    margin-top: 32px;
+  }
+  #form.show {
+    display: block;
+  }
+
+  .row {
+    margin-bottom: 20px;
+  }
+  .row label {
+    display: block;
+    font-size: 13px;
+    color: #888;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .row input[type="text"],
+  .row input[type="number"] {
+    width: 100%;
+    background: #15151f;
+    border: 1px solid #2a2a3a;
+    color: #fff;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+  .row input:focus {
+    outline: none;
+    border-color: #00e0ff;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  /* Кнопки */
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 32px;
+    flex-wrap: wrap;
+  }
+  button {
+    flex: 1;
+    min-width: 180px;
+    background: #00e0ff;
+    color: #000;
+    border: none;
+    padding: 16px 24px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,224,255,0.3);
+  }
+  button:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  button.secondary {
+    background: #1a1a2a;
+    color: #00e0ff;
+    border: 1px solid #00e0ff;
+  }
+  button.secondary:hover:not(:disabled) {
+    background: rgba(0,224,255,0.1);
+    box-shadow: none;
+  }
+
+  /* Метаданные */
+  #meta {
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: rgba(0,224,255,0.05);
+    border-left: 3px solid #00e0ff;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.8;
+    display: none;
+  }
+  #meta.show { display: block; }
+  #meta .k {
+    color: #666;
+    display: inline-block;
+    min-width: 130px;
+  }
+  #meta .v {
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* Ссылка на плеер */
+  #playerLink {
+    display: none;
+    margin-top: 24px;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(0,224,255,0.1), rgba(255,0,224,0.1));
+    border-radius: 12px;
+    text-align: center;
+  }
+  #playerLink.show { display: block; }
+  #playerLink p {
+    margin: 0 0 12px;
+    color: #aaa;
+    font-size: 14px;
+  }
+  #playerLink a {
+    display: inline-block;
+    background: #00e0ff;
+    color: #000;
+    padding: 12px 28px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 1px;
+    transition: transform 0.15s;
+  }
+  #playerLink a:hover {
+    transform: scale(1.05);
+  }
+
+  /* Статус */
+  #status {
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: #1a1a2a;
+    color: #fff;
+    padding: 14px 24px;
+    border-radius: 10px;
+    font-size: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    transition: transform 0.3s;
+    z-index: 100;
+    max-width: 90vw;
+  }
+  #status.show {
+    transform: translateX(-50%) translateY(0);
+  }
+  #status.success { border-left: 4px solid #00e0ff; }
+  #status.error   { border-left: 4px solid #ff5555; }
+
+  /* Навигация */
+  .topnav {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .topnav a {
+    color: #666;
+    text-decoration: none;
+    font-size: 14px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+  }
+  .topnav a:hover {
+    color: #00e0ff;
+    background: rgba(0,224,255,0.05);
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="topnav">
+    <a href="hmp4.html">▶ Плеер</a>
+    <a href="converter.html" style="color:#00e0ff;">🔄 Конвертер</a>
+  </div>
+
+  <header>
+    <h1>HMP5</h1>
+    <p>конвертер MP4 → HMP5</p>
+  </header>
+
+  <!-- Drop-зона -->
+  <div id="drop">
+    <div class="placeholder">
+      <span class="icon">🎬</span>
+      <h2>Перетащи видео сюда</h2>
+      <p>или нажми чтобы выбрать .mp4 / .mov / .webm</p>
+    </div>
+    <video id="preview" controls muted playsinline></video>
+  </div>
+
+  <input type="file" id="fileInput" accept="video/*" style="display:none">
+
+  <!-- Метаданные -->
+  <div id="meta">
+    <div><span class="k">📁 Файл:</span> <span class="v" id="mName">—</span></div>
+    <div><span class="k">⏱ Длительность:</span> <span class="v" id="mDur">—</span></div>
+    <div><span class="k">📐 Разрешение:</span> <span class="v" id="mRes">—</span></div>
+    <div><span class="k">📦 Размер:</span> <span class="v" id="mSize">—</span></div>
+  </div>
+
+  <!-- Форма -->
+  <div id="form">
+    <div class="row">
+      <label>Название видео</label>
+      <input type="text" id="inpTitle" value="Моё видео">
+    </div>
+
+    <div class="grid-2">
+      <div class="row">
+        <label>Длина сцены (сек)</label>
+        <input type="number" id="inpSceneLen" value="5" min="0.5" step="0.5">
+      </div>
+      <div class="row">
+        <label>Расширение видео</label>
+        <input type="text" id="inpExt" value="mp4">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btnDownload">💾 Скачать .hmp5</button>
+      <button id="btnPreview" class="secondary">🎬 Открыть в плеере</button>
+      <button id="btnReset" class="secondary">⟲ Сбросить</button>
+    </div>
+
+    <div id="playerLink">
+      <p>Плеер откроется с твоим видео. Сначала скачай .hmp5 и положи рядом с mp4, потом нажми:</p>
+      <a id="playerUrl" href="#" target="_blank">Открыть HMP5 в плеере</a>
+    </div>
+  </div>
+
+</div>
+
+<div id="status"></div>
+
+<script>
+/* ============================================================
+   HMP5 CONVERTER — MP4 → HMP5 полностью в браузере
+   ============================================================ */
+
+const $ = (id) => document.getElementById(id);
+
+let currentFile = null;   // File object
+let videoMeta = null;     // {duration, width, height, name}
+
+// ---------- Утилиты ----------
+function formatTime(sec) {
+  if (!isFinite(sec)) return '—';
+  if (sec < 60) return sec.toFixed(2) + ' сек';
+  const m = Math.floor(sec / 60);
+  const s = (sec % 60).toFixed(1);
+  return `${m} мин ${s} сек`;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+  return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+}
+
+function toast(msg, type = 'success') {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => {
+    el.className = type;
+  }, 3500);
+}
+
+// ---------- Загрузка файла ----------
+function loadFile(file) {
+  if (!file) return;
+  if (!file.type.startsWith('video/')) {
+    toast('Это не видеофайл 🤔', 'error');
+    return;
+  }
+
+  currentFile = file;
+  const url = URL.createObjectURL(file);
+
+  const video = $('preview');
+  video.src = url;
+
+  video.addEventListener('loadedmetadata', () => {
+    videoMeta = {
+      duration: video.duration,
+      width: video.videoWidth,
+      height: video.videoHeight,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+    };
+
+    // Обновляем UI
+    $('drop').classList.add('has-file');
+    $('meta').classList.add('show');
+    $('form').classList.add('show');
+
+    $('mName').textContent = file.name;
+    $('mDur').textContent  = formatTime(videoMeta.duration);
+    $('mRes').textContent  = `${videoMeta.width} × ${videoMeta.height}`;
+    $('mSize').textContent = formatBytes(file.size);
+
+    // Автоподстановка имени
+    const baseName = file.name.replace(/\.[^.]+$/, '');
+    $('inpTitle').value = baseName;
+
+    // Авто-подстановка расширения
+    const ext = file.name.split('.').pop().toLowerCase();
+    $('inpExt').value = ext;
+
+    toast('Видео загружено ✓');
+  }, { once: true });
+
+  video.addEventListener('error', () => {
+    toast('Браузер не может прочитать это видео. Попробуй mp4 (H.264).', 'error');
+  }, { once: true });
+}
+
+// ---------- Генерация HMP5 ----------
+function generateHMP5(meta, title, sceneLen, ext) {
+  const videoFile = currentFile.name;
+  const duration = meta.duration;
+  const fps = 30;
+  const width = meta.width;
+  const height = meta.height;
+
+  // Разбиваем на сцены
+  const scenes = [];
+  let t = 0;
+  let idx = 1;
+  while (t < duration - 0.01) {
+    const end = Math.min(t + sceneLen, duration);
+    scenes.push({
+      start: round2(t),
+      end: round2(end),
+      name: `scene-${idx}`,
+      title: idx === 1 ? title : `${title} — часть ${idx}`,
+    });
+    t = end;
+    idx++;
+  }
+
+  // HSCENES
+  const scenesBlock = scenes.map(sc => `<scene start="${sc.start}s" end="${sc.end}s" name="${sc.name}">
+  <div class="overlay">
+    <h1 class="scene-title">${escapeHtml(sc.title)}</h1>
+    <p class="scene-sub">${sc.start.toFixed(1)} – ${sc.end.toFixed(1)} сек</p>
+  </div>
+</scene>`).join('\n\n');
+
+  // HSTYLES
+  const styles = `/* Автогенерировано HMP5 Converter */
+* { box-sizing: border-box; }
+body {
+  background: #000;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  overflow: hidden;
+}
+#bg-video {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+  background: #000;
+  z-index: 0;
+}
+#stage { z-index: 1; }
+.scene { background: transparent; }
+
+.overlay {
+  position: absolute;
+  left: 40px;
+  bottom: 100px;
+  padding: 20px 28px;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-left: 4px solid #00e0ff;
+  border-radius: 8px;
+  animation: slideIn 0.6s ease both;
+  max-width: 70%;
+}
+.scene-title {
+  margin: 0;
+  font-size: clamp(24px, 4vw, 48px);
+  letter-spacing: 2px;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(0,224,255,0.6);
+}
+.scene-sub {
+  margin: 8px 0 0;
+  font-size: clamp(12px, 1.6vw, 18px);
+  color: #aaa;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+#controls { opacity: 0.35; transition: opacity 0.3s; }
+#controls:hover { opacity: 1; }
+`;
+
+  // HSCRIPT
+  const script = `// Автогенерировано HMP5 Converter
+console.log("[HMP5] Загружено:", state.meta.title);
+console.log("[HMP5] Сцен:", state.scenes.length);
+console.log("[HMP5] Длительность:", state.duration.toFixed(2) + "s");
+`;
+
+  // Собираем финальный файл
+  return `===HMETA===
+title: "${escapeMeta(title)}"
+fps: ${fps}
+resolution: ${width}x${height}
+duration: ${round2(duration)}s
+loop: false
+autoplay: true
+video: "${escapeMeta(videoFile)}"
+sceneLength: ${sceneLen}
+sceneCount: ${scenes.length}
+generatedBy: "HMP5 Web Converter"
+generatedAt: "${new Date().toISOString()}"
+===HSCENES===
+${scenesBlock}
+===HSTYLES===
+${styles}
+===HSCRIPT===
+${script}
+===HEND===
+`;
+}
+
+function round2(n) { return Math.round(n * 100) / 100; }
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escapeMeta(s) {
+  return String(s).replace(/"/g, "'").replace(/\n/g, ' ');
+}
+
+// ---------- Скачивание ----------
+function download(filename, content) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ---------- Обработчики ----------
+function initUI() {
+  const drop = $('drop');
+  const fileInput = $('fileInput');
+  const preview = $('preview');
+
+  // Клик по drop-зоне
+  drop.addEventListener('click', (e) => {
+    if (e.target === preview) return; // клик по видео не открывает диалог
+    fileInput.click();
+  });
+
+  // Выбор файла
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) loadFile(e.target.files[0]);
+  });
+
+  // Drag & drop
+  ['dragenter', 'dragover'].forEach(ev =>
+    drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.classList.add('dragover');
+    })
+  );
+  ['dragleave', 'drop'].forEach(ev =>
+    drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.classList.remove('dragover');
+    })
+  );
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
+
+  // Кнопка скачать
+  $('btnDownload').addEventListener('click', () => {
+    if (!currentFile || !videoMeta) {
+      toast('Сначала загрузи видео', 'error');
+      return;
+    }
+    const title = $('inpTitle').value.trim() || 'video';
+    const sceneLen = Math.max(0.5, parseFloat($('inpSceneLen').value) || 5);
+    const ext = $('inpExt').value.trim() || 'mp4';
+
+    try {
+      const hmp5 = generateHMP5(videoMeta, title, sceneLen, ext);
+      const baseName = currentFile.name.replace(/\.[^.]+$/, '');
+      download(baseName + '.hmp5', hmp5);
+
+      toast('Скачано! Файл в папке Downloads', 'success');
+
+      // Показываем ссылку на плеер
+      const playerLink = $('playerLink');
+      const playerUrl = `hmp4.html?v=${encodeURIComponent(baseName + '.hmp5')}`;
+      $('playerUrl').href = playerUrl;
+      playerLink.classList.add('show');
+    } catch (err) {
+      console.error(err);
+      toast('Ошибка: ' + err.message, 'error');
+    }
+  });
+
+  // Кнопка предпросмотра
+  $('btnPreview').addEventListener('click', () => {
+    if (!currentFile || !videoMeta) {
+      toast('Сначала загрузи видео', 'error');
+      return;
+    }
+    const title = $('inpTitle').value.trim() || 'video';
+    const sceneLen = Math.max(0.5, parseFloat($('inpSceneLen').value) || 5);
+    const ext = $('inpExt').value.trim() || 'mp4';
+
+    // Генерируем HMP5 и подсовываем через data-URL прямо в плеер
+    const hmp5 = generateHMP5(videoMeta, title, sceneLen, ext);
+    const blob = new Blob([hmp5], { type: 'text/plain' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    // Открываем плеер в новой вкладке с data-URL — но fetch не сможет прочитать blob-URL из другого окна.
+    // Поэтому просто скачиваем и говорим что делать.
+    download(currentFile.name.replace(/\.[^.]+$/, '') + '.hmp5', hmp5);
+    toast('Файл скачан. Открой его в плеере через кнопку ниже', 'success');
+
+    const baseName = currentFile.name.replace(/\.[^.]+$/, '');
+    $('playerUrl').href = `hmp4.html?v=${encodeURIComponent(baseName + '.hmp5')}`;
+    $('playerLink').classList.add('show');
+  });
+
+  // Сброс
+  $('btnReset').addEventListener('click', () => {
+    currentFile = null;
+    videoMeta = null;
+    $('preview').src = '';
+    $('drop').classList.remove('has-file');
+    $('meta').classList.remove('show');
+    $('form').classList.remove('show');
+    $('playerLink').classList.remove('show');
+    $('fileInput').value = '';
+    toast('Сброшено');
+  });
+}
+
+initUI();
+</script>
+</body>
+</html>
+

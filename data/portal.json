@@ -1,0 +1,9 @@
+{
+  "tiles": [
+    {"name": "Home Stream", "url": "/stream/", "icon": "🎬", "color": "#4a7aff", "desc": "Домашний стриминг видео"},
+    {"name": "Dashboard", "url": "/dashboard/", "icon": "🚀", "color": "#ff8800", "desc": "Панель управления"},
+    {"name": "CS:BATTLE 3D", "url": "/game/", "icon": "🎮", "color": "#8b5cf6", "desc": "Team Match игра"},
+    {"name": "Конвертер", "url": "/stream/converter.html", "icon": "🔄", "color": "#22c55e", "desc": "MP4 → HMP5"},
+    {"name": "Админка", "url": "/admin", "icon": "⚙️", "color": "#ef4444", "desc": "Управление"}
+  ]
+}

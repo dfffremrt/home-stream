@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Панель">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <title>Моя панель</title>
+</head>
+<body>
+  <div class="dashboard">
+    <section class="card clock-card">
+      <div id="time" class="time">--:--:--</div>
+      <div id="date" class="date">—</div>
+      <div id="tz" class="tz"></div>
+    </section>
+
+    <section class="card weather-card">
+      <h2>Погода</h2>
+      <div id="weather">Загрузка...</div>
+    </section>
+
+    <section class="card currency-card">
+      <h2>Курсы валют</h2>
+      <div id="currency">Загрузка...</div>
+    </section>
+
+    <section class="card links-card">
+      <h2>Быстрые ссылки</h2>
+      <div id="links" class="links"></div>
+      <form id="link-form" class="add-form">
+        <input type="text" id="link-name" placeholder="Название" required>
+        <input type="url" id="link-url" placeholder="https://..." required>
+        <button type="submit" aria-label="Добавить">+</button>
+      </form>
+    </section>
+
+    <section class="card notes-card">
+      <h2>Заметки</h2>
+      <textarea id="notes" placeholder="Пиши тут... сохраняется на сервере"></textarea>
+      <div id="notes-status" class="status"></div>
+    </section>
+
+    <section class="card chat-card">
+      <div class="chat-header">
+        <h2>Чат</h2>
+        <div class="chat-controls">
+          <input type="text" id="chat-name" placeholder="Имя" maxlength="32">
+          <button type="button" id="chat-clear" title="Очистить чат">🗑</button>
+        </div>
+      </div>
+      <div id="chat-messages" class="chat-messages"></div>
+      <form id="chat-form" class="chat-form">
+        <input type="text" id="chat-input" placeholder="Написать сообщение..." maxlength="2000" autocomplete="off">
+        <button type="submit" aria-label="Отправить">➤</button>
+      </form>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
